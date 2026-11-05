@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Agent Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .section {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        #chat-box {
+            border: 1px solid #eee;
+            height: 300px;
+            overflow-y: scroll;
+            padding: 10px;
+            background: #f9f9f9;
+            margin-bottom: 10px;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 5px;
+        }
+
+        .user {
+            background: #e3f2fd;
+            text-align: right;
+        }
+
+        .bot {
+            background: #fff;
+            border: 1px solid #ddd;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Meeting Agent Test (E2E)</h1>
+
+    <div class="warning-banner">
+        <strong>⚠️ Lưu ý:</strong> Hệ thống đang chạy với <strong>Dummy Database</strong> (không có kết nối Vector DB
+        thật).
+        <br>Mọi câu hỏi sẽ trả về "Không tìm thấy thông tin" (nhưng chứng minh luồng Agent hoạt động).
+    </div>
+
+    <!-- Upload Section -->
+    <div class="section">
+        <h2>1. Upload Meeting Transcript</h2>
+        <input type="file" id="file-input">
+        <input type="text" id="tenant-id-upload" placeholder="Tenant ID (e.g. xa_demo)" value="xa_demo">
+        <button onclick="uploadFile()">Upload</button>
+        <div id="upload-status"></div>
+    </div>
+
+    <!-- Chat Section -->
+    <div class="section">
+        <h2>2. Chat / Analyze</h2>
+        <div id="chat-box"></div>
+
+        <!-- Suggestions -->
+        <div id="suggestions" style="margin-bottom: 10px;">
+            <span style="font-size: 0.9em; color: #666;">Gợi ý:</span>
+            <div class="suggestion-chip" onclick="useSuggestion('Tóm tắt các nội dung chính của cuộc họp')">Tóm tắt cuộc
+                họp</div>
+            <div class="suggestion-chip" onclick="useSuggestion('Ai là người chủ trì và các thành phần tham dự?')">Ai
+                tham dự?</div>
+            <div class="suggestion-chip" onclick="useSuggestion('Liệt kê các kết luận chỉ đạo quan trọng')">Kết luận chỉ
+                đạo</div>
+            <div class="suggestion-chip"
+                onclick="useSuggestion('Có vấn đề gì còn tồn đọng hoặc cần giải quyết sau không?')">Vấn đề tồn đọng
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="message-input" placeholder="Hỏi về cuộc họp..." style="flex-grow: 1;">
+            <input type="text" id="tenant-id-chat" placeholder="Tenant ID" value="xa_demo" style="width: 100px;">
+            <button onclick="sendMessage()">Gửi</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8000/api"; // Port 8001 as used in verification
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('file-input');
+            const tenantId = document.getElementById('tenant-id-upload').value;
+            const statusDiv = document.getElementById('upload-status');
+
+            if (!fileInput.files[0]) {
+                statusDiv.innerHTML = '<span class="error">Chọn file đi bạn ơi!</span>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('tenant_id', tenantId);
+
+            statusDiv.innerHTML = 'Uploading...';
+
+            try {
+                const res = await fetch(`${API_BASE}/meeting/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Upload failed');
+                }
+
+                const data = await res.json();
+                statusDiv.innerHTML = `<span class="success">Upload OK! Trace: ${data.trace_id}</span>`;
+            } catch (e) {
+                statusDiv.innerHTML = `<span class="error">Lỗi: ${e.message}</span>`;
+            }
+        }
+
+        function useSuggestion(text) {
+            document.getElementById('message-input').value = text;
+            sendMessage();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const tenantId = document.getElementById('tenant-id-chat').value;
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMessage(text, 'user');
+            input.value = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/meeting/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        tenant_id: tenantId,
+                        agent_id: 'meeting_assistant',
+                        trace_id: 'fe-test-' + Date.now()
+                    })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Chat failed');
+                }
+
+                const data = await res.json();
+                addMessage(data.answer, 'bot');
+            } catch (e) {
+                addMessage(`Lỗi: ${e.message}`, 'bot error');
+            }
+        }
+
+        function addMessage(text, type) {
+            const box = document.getElementById('chat-box');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.innerText = text;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps for OCR/PDF and build extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    poppler-utils tesseract-ocr \
+    build-essential python3-dev \
+    libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PyTorch with CUDA support (default index)
+# We specify a version to ensure compatibility if needed, or just let it pick latest stable
+RUN pip install --no-cache-dir torch torchvision torchaudio
+
+COPY apps/ingestion/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY libs/core_shared /app/libs/core_shared
+RUN pip install -e /app/libs/core_shared
+
+COPY apps/ingestion/src /app/src
+ENV PYTHONPATH=/app/src:/app
+
+EXPOSE 8010
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]

@@ -1,0 +1,46 @@
+groups:
+  - name: gov-ai-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: (sum(rate(govai_chat_requests_total{status!="ok"}[5m])) / sum(rate(govai_chat_requests_total[5m]))) > 0.10
+        for: 5m
+        labels:
+          severity: critical
+          service: gov-ai
+          env: dev
+        annotations:
+          summary: "High Error Rate (>10%) detected on {{ $labels.instance }}"
+          description: "Error rate is {{ $value | humanizePercentage }}."
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(govai_chat_latency_seconds_bucket[5m])) by (le)) > 3
+        for: 5m
+        labels:
+          severity: warning
+          service: gov-ai
+          env: dev
+        annotations:
+          summary: "High Latency P95 (>3s)"
+          description: "P95 latency is {{ $value }}s."
+
+      - alert: PotentialAttackRateLimitSpike
+        expr: sum(increase(govai_rate_limit_blocks_total[1m])) > 50
+        for: 1m
+        labels:
+          severity: critical
+          service: gov-ai
+          env: dev
+        annotations:
+          summary: "Potential Attack (Rate Limit Spike)"
+          description: "Rate limit blocks increased by {{ $value }} in 1m."
+
+      - alert: GateBreachAttemptPolicyConflict
+        expr: sum(increase(govai_gate_fail_total{reason="policy_conflict"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: gov-ai
+          env: dev
+        annotations:
+          summary: "Policy Conflict Spike (>5 in 5m)"
+          description: "Policy conflict failures: {{ $value }}."

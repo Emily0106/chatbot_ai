@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GovAI Chat Console</title>
+  <style>
+    :root {
+      --bg: #f5f7f2;
+      --surface: #ffffff;
+      --ink: #1f2a21;
+      --ink-muted: #556358;
+      --line: #d7ddd6;
+      --brand: #12653d;
+      --brand-soft: #e2f2e9;
+      --warn: #8c5a00;
+      --warn-soft: #fff5df;
+      --danger: #9f1f1f;
+      --danger-soft: #ffecec;
+      --shadow: 0 12px 32px rgba(21, 52, 31, 0.08);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background:
+        radial-gradient(1200px 600px at 0% 0%, #eef7ff 0%, transparent 60%),
+        radial-gradient(800px 480px at 100% 0%, #e8f6ea 0%, transparent 50%),
+        var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, #fdfefc 0%, #f6faf5 100%);
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .brand-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .brand p {
+      margin: 0;
+      color: var(--ink-muted);
+      font-size: 12px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    textarea,
+    button {
+      font: inherit;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 9px 10px;
+      color: var(--ink);
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--brand);
+      outline: 2px solid rgba(18, 101, 61, 0.13);
+    }
+
+    .inline-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--ink-muted);
+    }
+
+    .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .btn:hover {
+      border-color: #b7c2b8;
+      background: #fcfdfb;
+    }
+
+    .btn.primary {
+      border-color: transparent;
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      background: #0f5835;
+    }
+
+    .agent-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .agents {
+      overflow: auto;
+      max-height: 42vh;
+      padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .agent-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .agent-item:hover {
+      border-color: #b7c2b8;
+      transform: translateY(-1px);
+    }
+
+    .agent-item.active {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+    }
+
+    .agent-item.disabled {
+      cursor: not-allowed;
+      background: #f2f4f1;
+      color: #7b857a;
+      border-style: dashed;
+    }
+
+    .agent-name {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .agent-id {
+      margin: 4px 0 0;
+      font-size: 11px;
+      color: var(--ink-muted);
+      font-family: var(--mono);
+      word-break: break-all;
+    }
+
+    .agent-note {
+      margin: 6px 0 0;
+      font-size: 11px;
+      color: #6e6358;
+    }
+
+    .meta-link {
+      color: var(--brand);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .meta-link:hover {
+      text-decoration: underline;
+    }
+
+    .main {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      min-height: 100vh;
+      padding: 20px;
+      gap: 12px;
+    }
+
+    .topbar {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .selected-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .selected-subtitle {
+      margin: 2px 0 0;
+      color: var(--ink-muted);
+      font-size: 12px;
+      font-family: var(--mono);
+    }
+
+    .status {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #fff;
+      font-size: 13px;
+      color: var(--ink-muted);
+    }
+
+    .status.warn {
+      border-color: #f0cf7d;
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+
+    .status.error {
+      border-color: #f5b6b6;
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .status.ok {
+      border-color: #b9dec8;
+      background: var(--brand-soft);
+      color: var(--brand);
+    }
+
+    .chat {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, #fdfefe 0%, #f7faf7 100%);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bubble {
+      max-width: 86%;
+      border-radius: 14px;
+      padding: 12px 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border: 1px solid transparent;
+    }
+
+    .bubble.user {
+      align-self: flex-end;
+      background: #dff0ff;
+      border-color: #bfddf5;
+    }
+
+    .bubble.assistant {
+      align-self: flex-start;
+      background: #ffffff;
+      border-color: #d8dfd7;
+    }
+
+    .bubble.system {
+      align-self: center;
+      max-width: 100%;
+      background: #f1f4f0;
+      border-color: #d3dbd2;
+      color: #4a564d;
+      font-size: 12px;
+    }
+
+    .bubble.error {
+      border-color: #f3b7b7;
+      background: #fff2f2;
+      color: #8f2626;
+    }
+
+    .bubble-head {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6d796f;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .citations {
+      margin-top: 10px;
+      border-top: 1px dashed #c7d0c6;
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .citation-item {
+      border: 1px solid #d2d9d1;
+      border-radius: 10px;
+      padding: 7px 8px;
+      background: #fbfdfb;
+      font-size: 12px;
+      color: #2f3a31;
+    }
+
+    .citation-item a {
+      color: #0f5b8f;
+      text-decoration: none;
+    }
+
+    .citation-item a:hover {
+      text-decoration: underline;
+    }
+
+    .composer {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+    }
+
+    #messageInput {
+      min-height: 56px;
+      resize: vertical;
+    }
+
+    .small {
+      font-size: 11px;
+      color: var(--ink-muted);
+      margin-top: 6px;
+      font-family: var(--mono);
+      word-break: break-all;
+    }
+
+    @media (max-width: 960px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .agents {
+        max-height: 220px;
+      }
+
+      .main {
+        padding: 14px;
+      }
+
+      .bubble {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-badge">AI</div>
+        <div>
+          <h1>GovAI Chat Console</h1>
+          <p>Internal pilot UI</p>
+        </div>
+      </div>
+
+      <section class="panel">
+        <p class="panel-title">Connection</p>
+        <label>
+          API Base URL
+          <input id="apiBase" type="text" placeholder="http://localhost:8000" />
+        </label>
+        <label>
+          X-API-Key
+          <input id="apiKey" type="password" placeholder="Enter API key" autocomplete="off" />
+        </label>
+        <label>
+          Tenant ID (optional)
+          <input id="tenantId" type="text" placeholder="tenant_a_e2e" />
+        </label>
+        <div class="inline-row">
+          <span class="switch">
+            <input id="streamToggle" type="checkbox" />
+            <label for="streamToggle" style="display:inline;margin:0;">Use stream mode</label>
+          </span>
+          <button id="saveConfigBtn" class="btn">Save local</button>
+        </div>
+      </section>
+
+      <section class="panel" style="min-height:0;">
+        <div class="agent-header">
+          <p class="panel-title" style="margin:0;">All Agents</p>
+          <button id="reloadAgentsBtn" class="btn">Reload</button>
+        </div>
+        <div id="agentsList" class="agents"></div>
+      </section>
+
+      <section class="panel">
+        <a id="opsLink" class="meta-link" href="#" target="_blank" rel="noopener">Open Ops Console</a>
+        <div class="small">Ops Console still requires <code>X-Admin-Key</code> and is not embedded here.</div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <section class="topbar">
+        <div>
+          <h2 id="selectedAgentName" class="selected-title">Select an agent</h2>
+          <p id="selectedAgentId" class="selected-subtitle">agent_id: -</p>
+        </div>
+        <button id="copyCurlBtn" class="btn">Copy curl</button>
+      </section>
+
+      <div id="statusBar" class="status">Loading agent catalog...</div>
+
+      <section id="chat" class="chat"></section>
+
+      <form id="composer" class="composer">
+        <div>
+          <textarea id="messageInput" placeholder="Type your question..."></textarea>
+          <div class="small">Shift+Enter for newline. Enter to send.</div>
+        </div>
+        <button id="sendBtn" class="btn primary" type="submit">Send</button>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEYS = {
+      apiBase: "govai.ui.api_base",
+      apiKey: "govai.ui.api_key",
+      tenantId: "govai.ui.tenant_id",
+      stream: "govai.ui.stream",
+      selectedAgentId: "govai.ui.selected_agent_id"
+    };
+
+    const state = {
+      apiBase: "",
+      apiKey: "",
+      tenantId: "",
+      stream: false,
+      agents: [],
+      selectedAgentId: "",
+      sending: false,
+      streamSupported: true
+    };
+
+    const el = {
+      apiBase: document.getElementById("apiBase"),
+      apiKey: document.getElementById("apiKey"),
+      tenantId: document.getElementById("tenantId"),
+      streamToggle: document.getElementById("streamToggle"),
+      saveConfigBtn: document.getElementById("saveConfigBtn"),
+      agentsList: document.getElementById("agentsList"),
+      reloadAgentsBtn: document.getElementById("reloadAgentsBtn"),
+      selectedAgentName: document.getElementById("selectedAgentName"),
+      selectedAgentId: document.getElementById("selectedAgentId"),
+      statusBar: document.getElementById("statusBar"),
+      chat: document.getElementById("chat"),
+      composer: document.getElementById("composer"),
+      messageInput: document.getElementById("messageInput"),
+      sendBtn: document.getElementById("sendBtn"),
+      copyCurlBtn: document.getElementById("copyCurlBtn"),
+      opsLink: document.getElementById("opsLink")
+    };
+
+    function defaultApiBase() {
+      const host = window.location.hostname || "localhost";
+      const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+      return `${protocol}//${host}:8000`;
+    }
+
+    function normalizeBaseUrl(value) {
+      const raw = String(value || "").trim();
+      if (!raw) {
+        return defaultApiBase();
+      }
+      return raw.replace(/\/+$/, "");
+    }
+
+    function joinUrl(base, path) {
+      const p = path.startsWith("/") ? path : `/${path}`;
+      return `${normalizeBaseUrl(base)}${p}`;
+    }
+
+    function toApiPath(base) {
+      const normalized = normalizeBaseUrl(base);
+      if (normalized.endsWith("/api")) {
+        return normalized;
+      }
+      return `${normalized}/api`;
+    }
+
+    function setStatus(text, kind) {
+      el.statusBar.textContent = text;
+      el.statusBar.className = "status";
+      if (kind) {
+        el.statusBar.classList.add(kind);
+      }
+    }
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function loadSettings() {
+      state.apiBase = normalizeBaseUrl(localStorage.getItem(STORAGE_KEYS.apiBase) || defaultApiBase());
+      state.apiKey = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
+      state.tenantId = localStorage.getItem(STORAGE_KEYS.tenantId) || "";
+      state.stream = localStorage.getItem(STORAGE_KEYS.stream) === "1";
+      state.selectedAgentId = localStorage.getItem(STORAGE_KEYS.selectedAgentId) || "";
+
+      el.apiBase.value = state.apiBase;
+      el.apiKey.value = state.apiKey;
+      el.tenantId.value = state.tenantId;
+      el.streamToggle.checked = state.stream;
+      refreshOpsLink();
+    }
+
+    function saveSettings() {
+      state.apiBase = normalizeBaseUrl(el.apiBase.value);
+      state.apiKey = String(el.apiKey.value || "").trim();
+      state.tenantId = String(el.tenantId.value || "").trim();
+      state.stream = !!el.streamToggle.checked;
+
+      localStorage.setItem(STORAGE_KEYS.apiBase, state.apiBase);
+      localStorage.setItem(STORAGE_KEYS.apiKey, state.apiKey);
+      localStorage.setItem(STORAGE_KEYS.tenantId, state.tenantId);
+      localStorage.setItem(STORAGE_KEYS.stream, state.stream ? "1" : "0");
+      if (state.selectedAgentId) {
+        localStorage.setItem(STORAGE_KEYS.selectedAgentId, state.selectedAgentId);
+      }
+
+      refreshOpsLink();
+      setStatus("Saved local settings.", "ok");
+    }
+
+    function refreshOpsLink() {
+      el.opsLink.href = joinUrl(state.apiBase, "/ops");
+    }
+
+    function fallbackAgents() {
+      return [
+        {
+          id: "citizen",
+          display_name: "Citizen",
+          enabled: true,
+          category: "public",
+          notes: ["Fallback list because /api/agents is unavailable."]
+        },
+        {
+          id: "legal",
+          display_name: "Legal",
+          enabled: true,
+          category: "public",
+          notes: ["Fallback list because /api/agents is unavailable."]
+        },
+        {
+          id: "report_agent",
+          display_name: "Report Agent",
+          enabled: false,
+          category: "internal",
+          notes: ["Fallback entry. Reload once backend /api/agents is reachable."]
+        }
+      ];
+    }
+
+    function renderAgents() {
+      el.agentsList.innerHTML = "";
+      if (!state.agents.length) {
+        const empty = document.createElement("div");
+        empty.className = "agent-item disabled";
+        empty.innerHTML = "<p class='agent-name'>No agents available</p>";
+        el.agentsList.appendChild(empty);
+        return;
+      }
+
+      for (const agent of state.agents) {
+        const card = document.createElement("article");
+        const isActive = agent.id === state.selectedAgentId;
+        const disabled = !agent.enabled;
+        card.className = `agent-item${isActive ? " active" : ""}${disabled ? " disabled" : ""}`;
+
+        const notes = Array.isArray(agent.notes) ? agent.notes : [];
+        const firstNote = notes.length ? `<p class="agent-note">${escapeHtml(notes[0])}</p>` : "";
+
+        card.innerHTML = `
+          <p class="agent-name">${escapeHtml(agent.display_name || agent.id)}</p>
+          <p class="agent-id">${escapeHtml(agent.id)}</p>
+          ${agent.category ? `<p class="agent-note">category: ${escapeHtml(agent.category)}</p>` : ""}
+          ${firstNote}
+        `;
+
+        if (!disabled) {
+          card.addEventListener("click", () => {
+            state.selectedAgentId = agent.id;
+            localStorage.setItem(STORAGE_KEYS.selectedAgentId, state.selectedAgentId);
+            renderAgents();
+            renderSelectedAgent();
+          });
+        }
+
+        el.agentsList.appendChild(card);
+      }
+    }
+
+    function renderSelectedAgent() {
+      const selected = state.agents.find((a) => a.id === state.selectedAgentId);
+      if (!selected) {
+        el.selectedAgentName.textContent = "Select an agent";
+        el.selectedAgentId.textContent = "agent_id: -";
+        return;
+      }
+
+      el.selectedAgentName.textContent = selected.display_name || selected.id;
+      el.selectedAgentId.textContent = `agent_id: ${selected.id}`;
+    }
+
+    function appendMessage(role, text, options = {}) {
+      const bubble = document.createElement("article");
+      bubble.className = `bubble ${role}${options.error ? " error" : ""}`;
+
+      const head = document.createElement("div");
+      head.className = "bubble-head";
+      head.textContent = options.head || (role === "user" ? "You" : role === "assistant" ? "Assistant" : "System");
+
+      const body = document.createElement("div");
+      body.textContent = String(text || "").trim() || "(empty)";
+
+      bubble.appendChild(head);
+      bubble.appendChild(body);
+
+      const citations = Array.isArray(options.citations) ? options.citations : [];
+      if (citations.length > 0) {
+        const box = document.createElement("div");
+        box.className = "citations";
+
+        for (const c of citations) {
+          const item = document.createElement("div");
+          item.className = "citation-item";
+
+          const title = c.title || c.section || c.document_id || "citation";
+          const detail = [
+            c.document_id ? `doc: ${c.document_id}` : "",
+            c.chunk_id ? `chunk: ${c.chunk_id}` : "",
+            Number.isFinite(c.score) ? `score: ${Number(c.score).toFixed(3)}` : ""
+          ].filter(Boolean).join(" | ");
+
+          const link = c.file_url
+            ? `<div><a href="${escapeHtml(c.file_url)}" target="_blank" rel="noopener">${escapeHtml(c.file_url)}</a></div>`
+            : "";
+
+          item.innerHTML = `<strong>${escapeHtml(title)}</strong>${detail ? `<div>${escapeHtml(detail)}</div>` : ""}${link}`;
+          box.appendChild(item);
+        }
+        bubble.appendChild(box);
+      }
+
+      if (options.meta) {
+        const metaDiv = document.createElement("div");
+        metaDiv.className = "small";
+        metaDiv.textContent = `meta: ${JSON.stringify(options.meta)}`;
+        bubble.appendChild(metaDiv);
+      }
+
+      el.chat.appendChild(bubble);
+      el.chat.scrollTop = el.chat.scrollHeight;
+    }
+
+    function setSending(sending) {
+      state.sending = sending;
+      el.sendBtn.disabled = sending;
+      el.sendBtn.textContent = sending ? "Sending..." : "Send";
+      el.messageInput.disabled = sending;
+    }
+
+    function authHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      if (state.apiKey) {
+        headers["X-API-Key"] = state.apiKey;
+      }
+      return headers;
+    }
+
+    async function parseApiError(response) {
+      const traceFromHeader = response.headers.get("x-trace-id") || response.headers.get("x-request-id") || "";
+      let detail = "";
+      let traceFromBody = "";
+
+      try {
+        const data = await response.json();
+        if (typeof data?.detail === "string") {
+          detail = data.detail;
+        } else if (data?.detail) {
+          detail = JSON.stringify(data.detail);
+        } else {
+          detail = JSON.stringify(data);
+        }
+        traceFromBody = data?.trace_id || data?.meta?.trace_id || "";
+      } catch (_) {
+        try {
+          detail = await response.text();
+        } catch (__ ) {
+          detail = "";
+        }
+      }
+
+      const trace = traceFromHeader || traceFromBody;
+      const retryAfter = response.headers.get("Retry-After");
+
+      if (response.status === 403) {
+        return `RBAC: not allowed${detail ? ` (${detail})` : ""}${trace ? ` [trace=${trace}]` : ""}`;
+      }
+      if (response.status === 429) {
+        const hint = retryAfter ? `retry in ~${retryAfter}s` : "retry shortly";
+        return `Rate limited (${hint})${trace ? ` [trace=${trace}]` : ""}`;
+      }
+      if (response.status >= 500) {
+        return `Server error (${response.status})${trace ? ` [trace=${trace}]` : ""}${detail ? `: ${detail}` : ""}`;
+      }
+      if (response.status === 401) {
+        return `Unauthorized: missing/invalid X-API-Key${trace ? ` [trace=${trace}]` : ""}`;
+      }
+      return `Request failed (${response.status})${detail ? `: ${detail}` : ""}${trace ? ` [trace=${trace}]` : ""}`;
+    }
+
+    async function loadAgents() {
+      saveSettings();
+      setStatus("Loading agents...", "");
+
+      const url = joinUrl(toApiPath(state.apiBase), "/agents");
+      try {
+        const res = await fetch(url, {
+          method: "GET",
+          headers: state.apiKey ? { "X-API-Key": state.apiKey } : {}
+        });
+
+        if (!res.ok) {
+          throw new Error(await parseApiError(res));
+        }
+
+        const data = await res.json();
+        state.agents = Array.isArray(data) ? data : [];
+        if (!state.agents.length) {
+          state.agents = fallbackAgents();
+        }
+
+        const selectedExists = state.agents.some((a) => a.id === state.selectedAgentId && a.enabled);
+        if (!selectedExists) {
+          const firstEnabled = state.agents.find((a) => a.enabled);
+          state.selectedAgentId = firstEnabled ? firstEnabled.id : "";
+        }
+
+        renderAgents();
+        renderSelectedAgent();
+        setStatus(`Loaded ${state.agents.length} agents.`, "ok");
+      } catch (err) {
+        state.agents = fallbackAgents();
+        const firstEnabled = state.agents.find((a) => a.enabled);
+        state.selectedAgentId = firstEnabled ? firstEnabled.id : "";
+        renderAgents();
+        renderSelectedAgent();
+        setStatus(`Failed to load /api/agents. Using fallback list. ${err.message || err}`, "warn");
+      }
+    }
+
+    function parseSseFrame(block) {
+      const lines = block.split("\n");
+      let eventName = "message";
+      const dataLines = [];
+      let hasSseFields = false;
+
+      for (const raw of lines) {
+        const line = raw.trimEnd();
+        if (!line) {
+          continue;
+        }
+        if (line.startsWith("event:")) {
+          eventName = line.slice(6).trim();
+          hasSseFields = true;
+          continue;
+        }
+        if (line.startsWith("data:")) {
+          dataLines.push(line.slice(5).trim());
+          hasSseFields = true;
+          continue;
+        }
+      }
+
+      const joined = dataLines.join("\n");
+      let payload = null;
+      if (joined) {
+        try {
+          payload = JSON.parse(joined);
+        } catch (_) {
+          payload = { text: joined };
+        }
+      }
+
+      if (!hasSseFields) {
+        return {
+          event: "raw",
+          payload: { text: block.trim() }
+        };
+      }
+
+      return { event: eventName, payload };
+    }
+
+    async function sendStreamRequest(payload) {
+      const url = joinUrl(toApiPath(state.apiBase), "/chat");
+      const res = await fetch(url, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error(await parseApiError(res));
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream") || !res.body) {
+        // Stream not supported by current backend implementation: fallback to normal JSON response.
+        const data = await res.json();
+        return {
+          answer: data.answer || "",
+          citations: Array.isArray(data.citations) ? data.citations : [],
+          meta: data.meta || {}
+        };
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      let buffer = "";
+      let answer = "";
+      let citations = [];
+      let finalMeta = {};
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+
+        for (const part of parts) {
+          const frame = parseSseFrame(part);
+          const payloadData = frame.payload || {};
+
+          if (frame.event === "error") {
+            const msg = payloadData.message || payloadData.detail || JSON.stringify(payloadData);
+            throw new Error(`Stream error: ${msg}`);
+          }
+
+          if (frame.event === "token" || frame.event === "delta" || frame.event === "chunk") {
+            const token = payloadData.token || payloadData.text || payloadData.delta || "";
+            if (token) {
+              answer += token;
+            }
+            continue;
+          }
+
+          if (frame.event === "citation") {
+            if (Array.isArray(payloadData.citations)) {
+              citations = payloadData.citations;
+            } else if (payloadData) {
+              citations.push(payloadData);
+            }
+            continue;
+          }
+
+          if (frame.event === "final" || frame.event === "response") {
+            answer = payloadData.answer || answer;
+            if (Array.isArray(payloadData.citations)) {
+              citations = payloadData.citations;
+            }
+            if (payloadData.meta && typeof payloadData.meta === "object") {
+              finalMeta = payloadData.meta;
+            }
+            continue;
+          }
+
+          if (frame.event === "raw" && payloadData.text) {
+            answer += (answer ? "\n" : "") + payloadData.text;
+          }
+        }
+      }
+
+      return {
+        answer: answer || "(stream completed)",
+        citations,
+        meta: finalMeta
+      };
+    }
+
+    async function sendNonStreamRequest(payload) {
+      const url = joinUrl(toApiPath(state.apiBase), "/chat");
+      const res = await fetch(url, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error(await parseApiError(res));
+      }
+
+      const data = await res.json();
+      return {
+        answer: data.answer || "",
+        citations: Array.isArray(data.citations) ? data.citations : [],
+        meta: data.meta || {}
+      };
+    }
+
+    async function onSend(event) {
+      event.preventDefault();
+      if (state.sending) {
+        return;
+      }
+
+      saveSettings();
+
+      const message = String(el.messageInput.value || "").trim();
+      if (!message) {
+        return;
+      }
+
+      const selected = state.agents.find((a) => a.id === state.selectedAgentId);
+      if (!selected) {
+        setStatus("Select an agent before sending.", "warn");
+        return;
+      }
+      if (!selected.enabled) {
+        setStatus("Selected agent is disabled (not runnable).", "warn");
+        return;
+      }
+
+      const payload = {
+        agent_id: selected.id,
+        message,
+        stream: state.stream,
+        ...(state.tenantId ? { tenant_id: state.tenantId } : {})
+      };
+
+      appendMessage("user", message);
+      el.messageInput.value = "";
+      setSending(true);
+      setStatus(`Sending to ${selected.id}...`, "");
+
+      try {
+        const response = state.stream
+          ? await sendStreamRequest(payload)
+          : await sendNonStreamRequest(payload);
+
+        appendMessage("assistant", response.answer, {
+          citations: response.citations,
+          meta: response.meta
+        });
+
+        const cacheHit = response.meta && typeof response.meta.cache_hit === "boolean"
+          ? ` cache_hit=${response.meta.cache_hit}`
+          : "";
+        setStatus(`Response received.${cacheHit}`, "ok");
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        appendMessage("assistant", msg, { error: true, head: "Error" });
+        setStatus(msg, "error");
+      } finally {
+        setSending(false);
+        el.messageInput.focus();
+      }
+    }
+
+    async function copyCurl() {
+      const selected = state.agents.find((a) => a.id === state.selectedAgentId && a.enabled);
+      if (!selected) {
+        setStatus("No enabled agent selected.", "warn");
+        return;
+      }
+      const sample = {
+        agent_id: selected.id,
+        message: el.messageInput.value.trim() || "Xin chao",
+        stream: !!state.stream,
+        ...(state.tenantId ? { tenant_id: state.tenantId } : {})
+      };
+      const command = `curl -s -X POST ${joinUrl(toApiPath(state.apiBase), "/chat")} \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-API-Key: ${state.apiKey || "<your-key>"}' \\\n  -d '${JSON.stringify(sample)}'`;
+
+      try {
+        await navigator.clipboard.writeText(command);
+        setStatus("Copied curl command.", "ok");
+      } catch (_) {
+        appendMessage("system", command, { head: "curl" });
+        setStatus("Clipboard unavailable. Printed curl in chat.", "warn");
+      }
+    }
+
+    function bindEvents() {
+      el.saveConfigBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        saveSettings();
+      });
+
+      el.reloadAgentsBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        loadAgents();
+      });
+
+      el.copyCurlBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        saveSettings();
+        copyCurl();
+      });
+
+      el.composer.addEventListener("submit", onSend);
+
+      el.messageInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          el.composer.requestSubmit();
+        }
+      });
+    }
+
+    async function bootstrap() {
+      loadSettings();
+      bindEvents();
+      appendMessage(
+        "system",
+        "Use /api/agents to pick a runnable agent. API key is stored in localStorage on this browser only.",
+        { head: "Info" }
+      );
+      await loadAgents();
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>

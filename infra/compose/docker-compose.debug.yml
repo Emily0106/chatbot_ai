@@ -1,0 +1,5 @@
+services:
+  ingest-api:
+    ports:
+      - "8010:8010"
+

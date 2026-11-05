@@ -1,0 +1,16 @@
+api_url: "http://localhost:8010/api/v1"
+server_id: "FILE_SERVER_01"
+auth:
+  tenant_id: "default"
+  user_role: "admin"
+monitors:
+  - path: "data/cong_khai"
+    profile_id: "c35ebe18-6551-564e-95a0-055d3951b09f" # profile_law_public
+  - path: "data/noi_bo"
+    profile_id: "ebb7c2fd-0aba-5040-aeaa-c16c5e48e386" # profile_meeting_internal
+  - path: "data/mat_cap_3"
+    profile_id: "fc064fdb-17bc-5d70-891f-6b633137b085" # profile_restricted_l3
+processed_dir: "data/processed"
+failed_dir: "data/failed"
+polling_interval: 2
+stability_wait: 1

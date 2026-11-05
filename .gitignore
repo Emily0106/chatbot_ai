@@ -1,0 +1,57 @@
+# env
+env/dev.env
+.env
+.env.staging
+.env.production
+.env.*.local
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# volumes
+storage/**
+!storage/.gitkeep
+models/**
+!models/.gitkeep
+
+# qdrant/postgres local if mounted to dirs
+qdrant_data/
+pg_data/
+
+# Ignore python cache & venv
+__pycache__/
+*.pyc
+.pytest_cache/
+env/
+venv/
+.venv/
+.env
+*.log
+.env.prod
+backups/
+dist/
+benchmark_*.csv
+benchmark_qe_*.csv
+*_stats*.csv
+*_failures.csv
+*_exceptions.csv
+REPORT_E2E_*.md
+.env*
+!.env.example
+!.env.e2e.example
+.vscode/
+artifacts/
+
+# secrets & certs (never commit)
+ops/secrets/*
+!ops/secrets/README.md
+*.pem
+*.key
+
+# build / misc
+*.egg-info/
+*.bak
+response*.json
+backend_manual.log

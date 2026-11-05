@@ -1,0 +1,24 @@
+version: "3"
+services:
+  postgres-lite:
+    image: postgres:15
+    container_name: gov-lite-postgres
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app_password
+      POSTGRES_DB: rag_db
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U app -d rag_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant-lite:
+    image: qdrant/qdrant:latest
+    container_name: gov-lite-qdrant
+    ports:
+      - "6333:6333"
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334

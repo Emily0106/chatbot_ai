@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Gov Chat - Dual Data Flow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 h-screen flex flex-col text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-lg text-white">
+                <i data-lucide="bot" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-xl text-slate-900">AI Gov Chat</h1>
+                <p class="text-xs text-slate-500 font-medium">Dual Data Flow Demo</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <div id="status-indicator"
+                class="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-semibold border border-green-200">
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                System Ready
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex overflow-hidden">
+
+        <!-- Sidebar / Mode Switcher -->
+        <aside class="w-64 bg-white border-r border-slate-200 flex flex-col">
+            <div class="p-4">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Chế độ làm việc</h2>
+                <div class="space-y-2">
+                    <button onclick="switchMode('temp')" id="btn-mode-temp"
+                        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all bg-blue-50 text-blue-700 border border-blue-200 shadow-sm">
+                        <i data-lucide="zap" class="w-5 h-5"></i>
+                        <div>
+                            <div class="font-bold">Họp Nhanh</div>
+                            <div class="text-[10px] opacity-80">Temp Flow (Redis)</div>
+                        </div>
+                    </button>
+                    <button onclick="switchMode('kb')" id="btn-mode-kb"
+                        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200">
+                        <i data-lucide="database" class="w-5 h-5"></i>
+                        <div>
+                            <div class="font-bold">Tra Cứu Kho</div>
+                            <div class="text-[10px] opacity-80">KB Flow (Qdrant)</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Temp Flow Controls (Only visible in Temp Mode) -->
+            <div id="temp-controls" class="p-4 border-t border-slate-200 mt-auto bg-slate-50">
+                <h3 class="text-xs font-bold text-slate-500 mb-3">Tài liệu tạm thời</h3>
+
+                <!-- Upload Area -->
+                <div id="upload-area"
+                    class="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer bg-white"
+                    onclick="document.getElementById('file-input').click()">
+                    <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+                    <p class="text-xs text-slate-500">Click để upload (.txt, .pdf, .docx)</p>
+                    <input type="file" id="file-input" class="hidden" accept=".txt,.pdf,.docx"
+                        onchange="handleUpload(this.files[0])">
+                </div>
+
+                <!-- File Status -->
+                <div id="file-status" class="hidden mt-3">
+                    <div class="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-md shadow-sm">
+                        <i data-lucide="file-text" class="w-4 h-4 text-blue-500"></i>
+                        <div class="flex-1 min-w-0">
+                            <p id="filename-display" class="text-xs font-medium truncate">meeting.txt</p>
+                            <p class="text-[10px] text-slate-400">ID: <span id="temp-id-display">...</span></p>
+                        </div>
+                        <button onclick="clearTemp()" class="text-slate-400 hover:text-red-500"><i data-lucide="x"
+                                class="w-4 h-4"></i></button>
+                    </div>
+
+                    <!-- Promote Button -->
+                    <button onclick="promoteDoc()" id="btn-promote"
+                        class="w-full mt-3 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-xs font-bold transition-colors shadow-sm">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        Lưu vào Kho (Promote)
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Chat Area -->
+        <main class="flex-1 flex flex-col bg-slate-50 relative">
+            <!-- Chat Messages -->
+            <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
+                <!-- Welcome Message -->
+                <div class="flex gap-4 max-w-3xl mx-auto">
+                    <div
+                        class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white flex-shrink-0">
+                        <i data-lucide="bot" class="w-5 h-5"></i>
+                    </div>
+                    <div
+                        class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-sm leading-relaxed text-slate-700">
+                        <p>Xin chào! Tôi là trợ lý AI Gov Chat.</p>
+                        <ul class="list-disc list-inside mt-2 space-y-1 text-slate-600">
+                            <li>Chọn <b>Họp Nhanh</b> để upload tài liệu tạm và hỏi đáp ngay.</li>
+                            <li>Chọn <b>Tra Cứu Kho</b> để tìm kiếm thông tin trong cơ sở dữ liệu chính thức.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-4 bg-white border-t border-slate-200">
+                <div class="max-w-3xl mx-auto relative">
+                    <form onsubmit="handleChat(event)" class="relative">
+                        <input type="text" id="user-input"
+                            class="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm shadow-inner"
+                            placeholder="Nhập câu hỏi của bạn..." required>
+                        <button type="submit"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    <p class="text-[10px] text-center text-slate-400 mt-2">
+                        Mode: <span id="current-mode-display" class="font-bold text-blue-600">Temp Flow</span>
+                        | Tenant: <span class="font-mono">xa_demo</span>
+                    </p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Logs Panel (Right) -->
+        <aside class="w-80 bg-slate-900 text-slate-300 flex flex-col border-l border-slate-800 text-xs font-mono">
+            <div class="p-3 border-b border-slate-800 font-bold flex justify-between items-center bg-slate-950">
+                <span>SYSTEM LOGS</span>
+                <button onclick="clearLogs()" class="text-slate-500 hover:text-white"><i data-lucide="trash-2"
+                        class="w-3 h-3"></i></button>
+            </div>
+            <div id="logs-container" class="flex-1 overflow-y-auto p-3 space-y-2">
+                <!-- Logs will appear here -->
+                <div class="text-slate-500 italic">Waiting for actions...</div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast"
+        class="fixed top-5 right-5 bg-white border-l-4 border-green-500 text-slate-700 px-4 py-3 rounded shadow-lg transform translate-x-full transition-transform duration-300 z-50 flex items-center gap-3">
+        <i data-lucide="check-circle" class="w-5 h-5 text-green-500"></i>
+        <div>
+            <p class="font-bold text-sm" id="toast-title">Success</p>
+            <p class="text-xs" id="toast-message">Operation completed.</p>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIG ---
+        const API_BASE = "http://localhost:8001/api";
+        const TENANT_ID = "xa_demo";
+        let currentMode = "temp"; // 'temp' | 'kb'
+        let currentTempDocId = null;
+
+        // --- ICONS ---
+        lucide.createIcons();
+
+        // --- UI FUNCTIONS ---
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('current-mode-display').innerText = mode === 'temp' ? 'Temp Flow' : 'KB Flow';
+
+            // Update Buttons
+            const btnTemp = document.getElementById('btn-mode-temp');
+            const btnKb = document.getElementById('btn-mode-kb');
+
+            if (mode === 'temp') {
+                btnTemp.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all bg-blue-50 text-blue-700 border border-blue-200 shadow-sm";
+                btnKb.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200";
+                document.getElementById('temp-controls').classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                btnKb.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm";
+                btnTemp.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200";
+                document.getElementById('temp-controls').classList.add('opacity-50', 'pointer-events-none');
+            }
+
+            addLog(`Switched to ${mode.toUpperCase()} mode`);
+        }
+
+        function addLog(msg, type = 'info') {
+            const container = document.getElementById('logs-container');
+            const div = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            let color = 'text-slate-300';
+            if (type === 'error') color = 'text-red-400';
+            if (type === 'success') color = 'text-green-400';
+
+            div.className = `${color} break-words border-b border-slate-800/50 pb-1`;
+            div.innerHTML = `<span class="opacity-50">[${time}]</span> ${msg}`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs-container').innerHTML = '';
+        }
+
+        function showToast(title, message, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-title').innerText = title;
+            document.getElementById('toast-message').innerText = message;
+
+            const borderClass = type === 'success' ? 'border-green-500' : 'border-red-500';
+            const iconColor = type === 'success' ? 'text-green-500' : 'text-red-500';
+
+            toast.className = `fixed top-5 right-5 bg-white border-l-4 ${borderClass} text-slate-700 px-4 py-3 rounded shadow-lg transform transition-transform duration-300 z-50 flex items-center gap-3`;
+
+            toast.classList.remove('translate-x-full');
+            setTimeout(() => toast.classList.add('translate-x-full'), 3000);
+        }
+
+        function addMessage(role, text, citations = []) {
+            const container = document.getElementById('chat-container');
+            const isUser = role === 'user';
+
+            const div = document.createElement('div');
+            div.className = `flex gap-4 max-w-3xl mx-auto ${isUser ? 'flex-row-reverse' : ''}`;
+
+            const avatar = isUser
+                ? `<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 flex-shrink-0"><i data-lucide="user" class="w-5 h-5"></i></div>`
+                : `<div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white flex-shrink-0"><i data-lucide="bot" class="w-5 h-5"></i></div>`;
+
+            let citationHtml = '';
+            if (citations && citations.length > 0) {
+                citationHtml = `<div class="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+                    <p class="font-bold mb-1">Nguồn tham khảo:</p>
+                    <ul class="space-y-1">
+                        ${citations.map(c => `
+                            <li class="flex items-start gap-1">
+                                <i data-lucide="file-text" class="w-3 h-3 mt-0.5"></i>
+                                <span>${c.title || 'Tài liệu'} (${c.score ? Math.round(c.score * 100) + '%' : 'N/A'})</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>`;
+            }
+
+            div.innerHTML = `
+                ${avatar}
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 text-sm leading-relaxed text-slate-700 ${isUser ? 'bg-blue-50 border-blue-100 rounded-tr-none' : 'rounded-tl-none'}">
+                    <p>${text}</p>
+                    ${citationHtml}
+                </div>
+            `;
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            lucide.createIcons();
+        }
+
+        // --- API LOGIC ---
+
+        async function handleUpload(file) {
+            if (!file) return;
+
+            addLog(`Uploading ${file.name}...`);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('tenant_id', TENANT_ID);
+
+            try {
+                const res = await fetch(`${API_BASE}/temp/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+                currentTempDocId = data.temp_doc_id;
+
+                // Update UI
+                document.getElementById('upload-area').classList.add('hidden');
+                document.getElementById('file-status').classList.remove('hidden');
+                document.getElementById('filename-display').innerText = file.name;
+                document.getElementById('temp-id-display').innerText = currentTempDocId.substring(0, 8) + '...';
+
+                addLog(`Upload success: ${currentTempDocId}`, 'success');
+                showToast('Upload Success', 'File is ready for chat');
+
+            } catch (e) {
+                addLog(`Upload error: ${e.message}`, 'error');
+                showToast('Upload Failed', e.message, 'error');
+            }
+        }
+
+        function clearTemp() {
+            currentTempDocId = null;
+            document.getElementById('upload-area').classList.remove('hidden');
+            document.getElementById('file-status').classList.add('hidden');
+            document.getElementById('file-input').value = '';
+            addLog('Cleared temp document');
+        }
+
+        async function promoteDoc() {
+            if (!currentTempDocId) return;
+
+            addLog(`Promoting ${currentTempDocId}...`);
+            const btn = document.getElementById('btn-promote');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Processing...`;
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE}/temp/promote`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tenant_id: TENANT_ID,
+                        temp_doc_id: currentTempDocId,
+                        doc_type: "meeting_transcript"
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Promotion failed');
+
+                addLog(`Promote success: Trace ${data.trace_id}`, 'success');
+                showToast('Promoted', 'Document sent to Knowledge Base');
+
+                // Optional: Clear temp after promote?
+                // clearTemp(); 
+
+            } catch (e) {
+                addLog(`Promote error: ${e.message}`, 'error');
+                showToast('Promotion Failed', e.message, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+        }
+
+        async function handleChat(e) {
+            e.preventDefault();
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage('user', message);
+            input.value = '';
+
+            addLog(`Sending message: "${message}" (Mode: ${currentMode})`);
+
+            const payload = {
+                message: message,
+                tenant_id: TENANT_ID,
+                agent_id: "meeting_assistant"
+            };
+
+            if (currentMode === 'temp' && currentTempDocId) {
+                payload.temp_doc_id = currentTempDocId;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/meeting/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Chat failed');
+
+                addMessage('bot', data.answer, data.citations);
+                addLog(`Response received (${data.citations.length} citations)`, 'success');
+
+            } catch (e) {
+                addMessage('bot', `⚠️ Error: ${e.message}`);
+                addLog(`Chat error: ${e.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,48 @@
+[
+    {
+        "id": "GOLD-001",
+        "input": "SELECT * FROM view_people WHERE name = 'Nam'",
+        "tenant_id": "xa_demo",
+        "expected_sql_contains": [
+            "commune_id = :__tenant_id",
+            "LIMIT 50"
+        ],
+        "expected_params": {
+            "__tenant_id": "xa_demo"
+        }
+    },
+    {
+        "id": "GOLD-002",
+        "input": "DROP TABLE view_people",
+        "tenant_id": "xa_demo",
+        "expected_error": "ddl_dml_forbidden"
+    },
+    {
+        "id": "GOLD-003",
+        "input": "SELECT * FROM view_people WHERE commune_id = 'xa_other'",
+        "tenant_id": "xa_demo",
+        "expected_sql_contains": [
+            "commune_id = :__tenant_id"
+        ],
+        "expected_params": {
+            "__tenant_id": "xa_demo"
+        }
+    },
+    {
+        "id": "GOLD-004",
+        "input": "SELECT * FROM view_budget",
+        "tenant_id": "xa_demo",
+        "expected_sql_contains": [
+            "LIMIT 50"
+        ],
+        "expected_params": {
+            "__tenant_id": "xa_demo"
+        }
+    },
+    {
+        "id": "GOLD-005",
+        "input": "SELECT * FROM view_people; DELETE FROM view_people",
+        "tenant_id": "xa_demo",
+        "expected_error": "multi_statement_forbidden"
+    }
+]

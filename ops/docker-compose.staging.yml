@@ -1,0 +1,83 @@
+version: "3.8"
+
+services:
+  # --- Core Application ---
+  backend:
+    container_name: gov-ai-backend
+    build:
+      context: ..
+      dockerfile: apps/backend/Dockerfile
+    env_file:
+      - env/.env.backend
+    ports:
+      - "127.0.0.1:8000:8000" # Localhost only, exposed via Nginx Edge
+    networks:
+      - gov-ai-net
+    restart: on-failure
+
+  # --- Edge Gateway ---
+  nginx-edge:
+    image: nginx:alpine
+    container_name: gov-ai-edge
+    ports:
+      - "8080:8080" # Redirect
+      - "8443:8443" # HTTPS
+    env_file:
+      - env/.env.edge
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./secrets/htpasswd:/etc/nginx/secrets/htpasswd:ro
+      - ./secrets/tls:/etc/nginx/secrets/tls:ro
+    networks:
+      - gov-ai-net
+    depends_on:
+      - backend
+      - prometheus
+      - grafana
+      - alertmanager
+
+  # --- Observability Stack ---
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: gov-ai-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules.yml:/etc/prometheus/rules.yml
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - "127.0.0.1:9090:9090" # Localhost only, exposed via Nginx Edge
+    networks:
+      - gov-ai-net
+
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: gov-ai-alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.config
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.config"
+    ports:
+      - "127.0.0.1:9093:9093" # Localhost only, exposed via Nginx Edge
+    networks:
+      - gov-ai-net
+
+  grafana:
+    image: grafana/grafana:10.0.3
+    container_name: gov-ai-grafana
+    env_file:
+      - env/.env.observability
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
+    ports:
+      - "127.0.0.1:3000:3000" # Localhost only, exposed via Nginx Edge
+    volumes:
+      - ./grafana:/var/lib/grafana/dashboards
+      - ./secrets/grafana_admin_password:/run/secrets/grafana_admin_password:ro
+    networks:
+      - gov-ai-net
+
+networks:
+  gov-ai-net:
+    driver: bridge

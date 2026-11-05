@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: gov-caddy-prod
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+    networks:
+      - edge
+    depends_on:
+      - backend
+
+  backend:
+    image: ${BACKEND_IMAGE:-gov-backend:prod}
+    container_name: gov-backend-prod
+    restart: always
+    mem_limit: 2048m
+    cpus: 2.0
+    env_file:
+      - ../../.env.prod
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - internal
+      - edge
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # Note: Ports are NOT exposed to host. Access via Caddy.
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: gov-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: ${POSTGRES_DB:-govai_prod}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: gov-redis-prod
+    restart: always
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: gov-qdrant-prod
+    restart: always
+    volumes:
+      - qdrant_prod_data:/qdrant/storage
+    networks:
+      - internal
+    healthcheck:
+      test: [ "CMD-SHELL", "true" ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+networks:
+  internal:
+    name: govai_prod_internal
+    internal: true
+  edge:
+    name: govai_prod_edge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_prod_data:
+  redis_prod_data:
+  qdrant_prod_data:

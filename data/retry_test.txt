@@ -1,0 +1,1 @@
+This file tests retry logic when API is down.

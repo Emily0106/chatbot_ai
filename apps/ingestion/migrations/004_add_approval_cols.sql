@@ -1,0 +1,3 @@
+ALTER TABLE ingestion_jobs
+ADD COLUMN IF NOT EXISTS approved_by TEXT,
+ADD COLUMN IF NOT EXISTS approver_role TEXT;

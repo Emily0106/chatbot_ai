@@ -1,0 +1,104 @@
+{
+    "__inputs": [
+        {
+            "name": "DS_PROMETHEUS",
+            "label": "Prometheus",
+            "description": "",
+            "type": "datasource",
+            "pluginId": "prometheus",
+            "pluginName": "Prometheus"
+        }
+    ],
+    "__requires": [
+        {
+            "type": "grafana",
+            "id": "grafana",
+            "name": "Grafana",
+            "version": "9.0.0"
+        }
+    ],
+    "title": "GovAI Overview",
+    "uid": "govai-main",
+    "panels": [
+        {
+            "type": "timeseries",
+            "title": "RPS (Requests Per Second)",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(govai_chat_requests_total[1m]))",
+                    "legendFormat": "Total RPS"
+                }
+            ]
+        },
+        {
+            "type": "timeseries",
+            "title": "Status Breakdown",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(govai_chat_requests_total[1m])) by (status)",
+                    "legendFormat": "{{status}}"
+                }
+            ]
+        },
+        {
+            "type": "timeseries",
+            "title": "P95 Latency (Total)",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(govai_chat_latency_seconds_bucket{stage=\"total\"}[5m])) by (le))",
+                    "legendFormat": "P95 Latency"
+                }
+            ]
+        },
+        {
+            "type": "timeseries",
+            "title": "AuthZ Denials Rate",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(govai_authz_denials_total[1m])) by (reason)",
+                    "legendFormat": "{{reason}}"
+                }
+            ]
+        },
+        {
+            "type": "stat",
+            "title": "Active Streams",
+            "gridPos": {
+                "h": 4,
+                "w": 24,
+                "x": 0,
+                "y": 16
+            },
+            "targets": [
+                {
+                    "expr": "sum(govai_streams_active)",
+                    "legendFormat": "Streams"
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,172 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: rag_db
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ../postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U app -d rag_db" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ../../
+      dockerfile: apps/backend/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../../env/dev.env
+      - ../../.env.e2e
+    environment:
+      - INGEST_INTERNAL_TOKEN=${INGEST_INTERNAL_TOKEN:-compose-internal-token}
+    volumes:
+      - ../../apps/backend/src:/app/src
+      - ../../libs/core_shared:/app/libs/core_shared
+      - ../../models:/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ingest-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+  ingest-migrate:
+    build:
+      context: ../../
+      dockerfile: apps/ingestion/Dockerfile
+    command:
+      - python
+      - -m
+      - app.migrations.apply_migrations
+      - --migrations-dir
+      - /app/migrations
+      - --wait-timeout-s
+      - "120"
+    environment:
+      - DATABASE_URL=postgresql://app:change_me@postgres:5432/rag_db
+    volumes:
+      - ../../apps/ingestion/src:/app/src
+      - ../../apps/ingestion/migrations:/app/migrations:ro
+      - ../../libs/core_shared:/app/libs/core_shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  ingest-api:
+    build:
+      context: ../../
+      dockerfile: apps/ingestion/Dockerfile
+    expose:
+      - "8010"
+    environment:
+      - DATABASE_URL=postgresql://app:change_me@postgres:5432/rag_db
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=change_me
+      - POSTGRES_DB=rag_db
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION=gov_knowledge
+      - REDIS_URL=redis://redis:6379
+      - EMBED_MODEL_PATH=/models/vietnamese-sbert
+      - EMBED_DEVICE=cpu
+      - INGEST_INTERNAL_TOKEN=${INGEST_INTERNAL_TOKEN:-compose-internal-token}
+    volumes:
+      - ../../storage/raw_files:/app/storage
+      - ../../models:/models:ro
+      - ../../apps/ingestion/src:/app/src
+      - ../../libs/core_shared:/app/libs/core_shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ingest-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  ingest-worker:
+    build:
+      context: ../../
+      dockerfile: apps/ingestion/Dockerfile
+    command: [ "celery", "-A", "app.workers.worker_main.celery_app", "worker", "-l", "info", "-c", "1" ]
+    environment:
+      - DATABASE_URL=postgresql://app:change_me@postgres:5432/rag_db
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=change_me
+      - POSTGRES_DB=rag_db
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION=gov_knowledge
+      - REDIS_URL=redis://redis:6379
+      - EMBED_MODEL_PATH=/models/vietnamese-sbert
+      - EMBED_DEVICE=cpu
+      - INGEST_INTERNAL_TOKEN=${INGEST_INTERNAL_TOKEN:-compose-internal-token}
+    volumes:
+      - ../../storage/raw_files:/app/storage
+      - ../../models:/models:ro
+      - ../../apps/ingestion/src:/app/src
+      - ../../libs/core_shared:/app/libs/core_shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ingest-migrate:
+        condition: service_completed_successfully
+
+  admin-dashboard:
+    build:
+      context: ../../apps/admin_dashboard
+      dockerfile: Dockerfile
+    container_name: compose-admin-dashboard
+    ports:
+      - "8001:8501"
+    environment:
+      - BACKEND_URL=http://backend:8000/api
+      - INGESTION_URL=http://ingest-api:8010/api/v1
+    volumes:
+      - ../../apps/admin_dashboard:/app
+    depends_on:
+      - backend
+      - ingest-api
+
+  frontend:
+    image: nginx:alpine
+    volumes:
+      - ../../apps/frontend:/usr/share/nginx/html:ro
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pg_data:
+  qdrant_data:

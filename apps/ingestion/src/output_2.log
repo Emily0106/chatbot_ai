@@ -1,0 +1,70 @@
+DEBUG: people_demo file: /app/src/app/preproc/utils/people_demo.py
+DEBUG: sys.path: ['/app/src', '/app/src', '/app', '/usr/local/lib/python311.zip', '/usr/local/lib/python3.11', '/usr/local/lib/python3.11/lib-dynload', '/usr/local/lib/python3.11/site-packages', '/app/src', '/app/libs/core_shared']
+Recreating Qdrant collection=people_demo
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.NotNullViolation: null value in column "row_index" of relation "structured_rows" violates not-null constraint
+DETAIL:  Failing row contains (7c4c5da2-f1c2-52cb-8399-fca65cb73143, 68257907-5012-408a-8acb-111a4d01624f, null, people, null, null, {"dob": "1990-03-12", "cccd": 1090000001, "code": "A", "note": "..., , {"source": {"row_index": 2, "page_index": null, "sheet_name": "p..., 2026-01-05 08:10:50.899555+00, 2026-01-05 08:10:50.899555+00).
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/src/app/preproc/utils/people_demo.py", line 285, in upsert_person_rows_to_postgres
+    conn.execute(stmt, parameters={
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.NotNullViolation) null value in column "row_index" of relation "structured_rows" violates not-null constraint
+DETAIL:  Failing row contains (7c4c5da2-f1c2-52cb-8399-fca65cb73143, 68257907-5012-408a-8acb-111a4d01624f, null, people, null, null, {"dob": "1990-03-12", "cccd": 1090000001, "code": "A", "note": "..., , {"source": {"row_index": 2, "page_index": null, "sheet_name": "p..., 2026-01-05 08:10:50.899555+00, 2026-01-05 08:10:50.899555+00).
+
+[SQL: 
+                    INSERT INTO structured_rows (row_id, doc_id, doc_category, data_content, citation, commune_id)
+                    VALUES (%(row_id)s, %(doc_id)s, %(doc_category)s, %(data_content)s, %(citation)s, %(commune_id)s)
+                    ON CONFLICT (row_id) DO UPDATE SET
+                        doc_id = EXCLUDED.doc_id,
+                        data_content = EXCLUDED.data_content,
+                        citation = EXCLUDED.citation,
+                        commune_id = EXCLUDED.commune_id;
+                ]
+[parameters: {'row_id': '7c4c5da2-f1c2-52cb-8399-fca65cb73143', 'doc_id': '68257907-5012-408a-8acb-111a4d01624f', 'doc_category': 'people', 'data_content': '{"code": "A", "full_name": "Nguyễn Văn A", "gender": "Nam", "dob": "1990-03-12", "cccd": 1090000001, "phone": "0901 000 001", "email": "a.nguyenvan@e ... (295 characters truncated) ... example com can bo tu phap ho tich phu trach tiep nhan ho so ho tich ca truc thu 2 6 08 00 17 00 phuong 1 quan 1 so 12 đuong hoa mai p 1 q 1 tp hcm"}', 'citation': '{"source":{"source_uri":"storage/raw_files/people_demo.xlsx","sheet_name":"people","row_index":2,"page_index":null}}', 'commune_id': None}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Reading from: /app/storage/people_demo.xlsx
+Found 3 rows
+Upserting to Qdrant...
+Error upserting to Postgres: (psycopg2.errors.NotNullViolation) null value in column "row_index" of relation "structured_rows" violates not-null constraint
+DETAIL:  Failing row contains (7c4c5da2-f1c2-52cb-8399-fca65cb73143, 68257907-5012-408a-8acb-111a4d01624f, null, people, null, null, {"dob": "1990-03-12", "cccd": 1090000001, "code": "A", "note": "..., , {"source": {"row_index": 2, "page_index": null, "sheet_name": "p..., 2026-01-05 08:10:50.899555+00, 2026-01-05 08:10:50.899555+00).
+
+[SQL: 
+                    INSERT INTO structured_rows (row_id, doc_id, doc_category, data_content, citation, commune_id)
+                    VALUES (%(row_id)s, %(doc_id)s, %(doc_category)s, %(data_content)s, %(citation)s, %(commune_id)s)
+                    ON CONFLICT (row_id) DO UPDATE SET
+                        doc_id = EXCLUDED.doc_id,
+                        data_content = EXCLUDED.data_content,
+                        citation = EXCLUDED.citation,
+                        commune_id = EXCLUDED.commune_id;
+                ]
+[parameters: {'row_id': '7c4c5da2-f1c2-52cb-8399-fca65cb73143', 'doc_id': '68257907-5012-408a-8acb-111a4d01624f', 'doc_category': 'people', 'data_content': '{"code": "A", "full_name": "Nguyễn Văn A", "gender": "Nam", "dob": "1990-03-12", "cccd": 1090000001, "phone": "0901 000 001", "email": "a.nguyenvan@e ... (295 characters truncated) ... example com can bo tu phap ho tich phu trach tiep nhan ho so ho tich ca truc thu 2 6 08 00 17 00 phuong 1 quan 1 so 12 đuong hoa mai p 1 q 1 tp hcm"}', 'citation': '{"source":{"source_uri":"storage/raw_files/people_demo.xlsx","sheet_name":"people","row_index":2,"page_index":null}}', 'commune_id': None}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Done!
+{'collection_name': 'people_demo', 'doc_id': '68257907-5012-408a-8acb-111a4d01624f', 'inserted_points': 3, 'vector_size': 384, 'embed_model': 'all-MiniLM-L6-v2'}

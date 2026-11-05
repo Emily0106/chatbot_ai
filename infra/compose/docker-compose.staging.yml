@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: gov-postgres-staging
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-staging}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-govai_staging}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-staging} -d ${POSTGRES_DB:-govai_staging}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: gov-qdrant-staging
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant_staging_data:/qdrant/storage
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: gov-redis-staging
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_staging_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: apps/backend/Dockerfile
+    image: gov-backend:staging
+    container_name: gov-backend-staging
+    restart: unless-stopped
+    env_file:
+      - ../../.env.staging
+    environment:
+      # C0: Runtime validation enforces these are set properly
+      - ENV_MODE=staging
+      - CI_MODE=false
+
+      # Database (override from .env.staging if needed)
+      - DB_URL=${DB_URL:-postgresql+asyncpg://staging:${POSTGRES_PASSWORD}@postgres:5432/govai_staging}
+      - POSTGRES_USER=${POSTGRES_USER:-staging}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      - POSTGRES_DB=${POSTGRES_DB:-govai_staging}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+
+      # Vector DB
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
+      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-gov_knowledge}
+      - QDRANT_READONLY_API_KEY=${QDRANT_READONLY_API_KEY:-}
+      - QDRANT_WRITE_API_KEY=${QDRANT_WRITE_API_KEY:-}
+
+      # Cache
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+
+      # LLM & Embeddings
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY required}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - EMBEDDING_BACKEND=${EMBEDDING_BACKEND:-local}
+      - EMBED_MODEL_PATH=${EMBED_MODEL_PATH:-sentence-transformers/all-MiniLM-L6-v2}
+      - EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-cpu}
+
+      # Security (REQUIRED by C0 validation)
+      - API_KEYS_JSON=${API_KEYS_JSON:?API_KEYS_JSON required for staging}
+      - ALLOW_DEFAULT_TENANT=false
+
+      # Feature Flags
+      - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}
+      - ENABLE_STREAMING_CHAT=${ENABLE_STREAMING_CHAT:-true}
+      - RERANK_ENABLED=${RERANK_ENABLED:-false}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    command: >
+      sh -c " echo '🚀 Starting Gov-AI Backend (Staging)' && uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info "
+
+volumes:
+  postgres_staging_data:
+    name: gov_postgres_staging_data
+  qdrant_staging_data:
+    name: gov_qdrant_staging_data
+  redis_staging_data:
+    name: gov_redis_staging_data
+
+networks:
+  default:
+    name: gov_staging_network

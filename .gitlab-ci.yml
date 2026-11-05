@@ -1,0 +1,492 @@
+variables:
+  # Global vars
+  VECTOR_DIM: "768"
+  PYTHON_VERSION: "3.10"
+
+  # CI knobs
+  CI_MODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_CACHE_DIR: "1"
+
+  # Docker build
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+  IMAGE_BACKEND: "$CI_REGISTRY_IMAGE/backend"
+
+default:
+  tags:
+    - selfhosted
+
+stages:
+  - build
+  - guardrails
+  - unit-tests
+  - integration-smoke
+  - deploy
+
+# ----------------------------
+# Common snippets (bash)
+# ----------------------------
+# NOTE: GitLab doesn't support YAML anchors everywhere the same on all versions.
+# So we keep jobs explicit & readable.
+
+# --- Stage 1: Guardrails (Fail Fast) ---
+parity-check:
+  stage: guardrails
+  image: "python:${PYTHON_VERSION}-slim"
+  services:
+    - name: qdrant/qdrant:latest
+      alias: qdrant
+  variables:
+    CI_MODE: "1"
+    QDRANT_URL: "http://qdrant:6333"
+  script:
+    - |
+        set -euo pipefail
+        python -V
+
+        apt-get update
+        apt-get install -y --no-install-recommends gcc libpq-dev
+        rm -rf /var/lib/apt/lists/*
+
+        python -m pip install -U pip setuptools wheel
+        python -m pip install --no-cache-dir -r apps/backend/requirements-ci.txt
+
+        export PYTHONPATH="$(pwd)/apps/backend/src:$(pwd)/libs/core_shared:${PYTHONPATH:-}"
+
+        if [ -f env/.env.ci ]; then
+          set -a
+          . env/.env.ci
+          set +a
+        else
+          echo "WARN: env/.env.ci not found (skipping)"
+        fi
+
+        python3 scripts/verify_parity.py
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# --- Stage 2: Unit Tests ---
+backend-unit:
+  stage: unit-tests
+  image: "python:${PYTHON_VERSION}-slim"
+  variables:
+    CI_MODE: "1"
+  script:
+    - |
+        set -euo pipefail
+        python -V
+
+        python -m pip install -U pip setuptools wheel
+        python -m pip install --no-cache-dir -r apps/backend/requirements-ci.txt
+        python -m pip install --no-cache-dir pytest pytest-asyncio
+
+        export PYTHONPATH="$(pwd)/apps/backend/src:$(pwd)/libs/core_shared:${PYTHONPATH:-}"
+
+        if [ -f env/.env.ci ]; then
+          set -a
+          . env/.env.ci
+          set +a
+        else
+          echo "WARN: env/.env.ci not found (skipping)"
+        fi
+
+        # Run only certification/unit tests, excluding heavy integration
+        pytest -q apps/backend/src/test_agent_certification.py -v
+        pytest -q apps/backend/tests/unit/test_runtime_fail_closed.py -v
+  only:
+    - merge_requests
+    - main
+    - develop
+
+ingestion-ownership-unit:
+  stage: unit-tests
+  image: "python:${PYTHON_VERSION}-slim"
+  variables:
+    CI_MODE: "1"
+  script:
+    - |
+        set -euo pipefail
+        python -V
+
+        python -m pip install -U pip setuptools wheel
+        python -m pip install --no-cache-dir -r apps/ingestion/requirements.txt
+        python -m pip install --no-cache-dir pytest
+
+        export PYTHONPATH="$(pwd)/apps/ingestion/src:${PYTHONPATH:-}"
+
+        pytest -q apps/ingestion/tests/unit/test_docs_ownership_endpoints.py -v
+        pytest -q apps/ingestion/tests/unit/test_postgres_repo_doc_ownership.py -v
+        pytest -q apps/ingestion/tests/unit/test_qdrant_repo_delete_tenant.py -v
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# --- Stage 3: Integration Smoke ---
+smoke-test:
+  stage: integration-smoke
+  image: "python:${PYTHON_VERSION}-slim"  # Pin to 3.10 (not 3.13)
+  services:
+    - name: postgres:15
+      alias: postgres
+    - name: qdrant/qdrant:latest
+      alias: qdrant
+    - name: redis:7
+      alias: redis
+  variables:
+    # Service Config
+    POSTGRES_DB: "gov_chat_ci"
+    POSTGRES_USER: "postgres"
+    POSTGRES_PASSWORD: "postgres"
+    POSTGRES_HOST_AUTH_METHOD: "trust"
+
+    # App URLs (avoid localhost in CI)
+    QDRANT_URL: "http://qdrant:6333"
+    REDIS_URL: "redis://redis:6379/0"
+    DB_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/gov_chat_ci"
+
+    # Smoke Config
+    CI_SMOKE_LOG_CHARS: "4000"
+    CI_MODE: "1"
+    RERANK_ENABLED: "0"
+    USE_OPENAI_EMBEDDING: "false"
+    EMBEDDING_PROVIDER: "mock"
+    EMBEDDING_BACKEND: "mock"
+    
+    # API Keys for smoke tests (CI-only keys, safe to expose)
+    API_KEYS_JSON: '{"dev-key-123":{"tenant_id":"default","roles":["admin"],"security_level":5,"geo_code":"default"}}'
+    CI_SMOKE_CITIZEN_KEY: "dev-key-123"
+    CI_SMOKE_ADMIN_KEY: "dev-key-123"
+  script:
+    - |
+        set -euo pipefail
+        python -V
+
+        apt-get update
+        apt-get install -y --no-install-recommends gcc libpq-dev curl
+        rm -rf /var/lib/apt/lists/*
+
+        python -m pip install -U pip setuptools wheel
+        python -m pip install --no-cache-dir -r apps/backend/requirements-ci.txt
+        python -m pip install --no-cache-dir pytest-asyncio httpx
+
+        export PYTHONPATH="$(pwd)/apps/backend/src:$(pwd)/libs/core_shared:${PYTHONPATH:-}"
+
+        # Load CI Environment (optional)
+        if [ -f env/.env.ci ]; then
+          set -a
+          . env/.env.ci
+          set +a
+        else
+          echo "WARN: env/.env.ci not found (skipping)"
+        fi
+
+        # Wait for Postgres (60s)
+        echo "Waiting for Postgres..."
+        python3 - <<'PY'
+        import time, socket, sys
+        for _ in range(60):
+            try:
+                socket.create_connection(("postgres", 5432), 2).close()
+                print("postgres ready")
+                sys.exit(0)
+            except Exception:
+                time.sleep(1)
+        print("postgres not ready")
+        sys.exit(1)
+        PY
+
+        # Wait for Qdrant (60s) + fail if not ready
+        echo "Waiting for Qdrant..."
+        ok=0
+        for i in $(seq 1 60); do
+          if curl -fsS "$QDRANT_URL/healthz" >/dev/null; then
+            ok=1
+            echo "qdrant ready"
+            break
+          fi
+          sleep 1
+        done
+        if [ "$ok" -ne 1 ]; then
+          echo "Qdrant not ready"
+          exit 1
+        fi
+
+    - python3 scripts/ci_smoke.py
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# --- Manual: Safe E2E Sandbox (Full Suite) ---
+safe-e2e-manual:
+  stage: integration-smoke
+  image: docker:27.0.3
+  tags:
+    - selfhosted
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  before_script:
+    - apk add --no-cache python3 py3-pip bash curl git iproute2
+    - docker info
+    - python3 -m pip install --break-system-packages -r apps/backend/requirements-ci.txt httpx pytest
+  script:
+    - bash scripts/run_safe_e2e.sh
+  when: manual
+  allow_failure: true
+
+# --- Stage 0: Build (Docker Image) ---
+build-backend-image:
+  stage: build
+  image: docker:27.0.3
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  before_script:
+    - docker info
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - |
+      set -euo pipefail
+      echo "Building backend image..."
+      docker build -f apps/backend/Dockerfile \
+        -t "$IMAGE_BACKEND:$CI_COMMIT_SHA" \
+        -t "$IMAGE_BACKEND:prod-latest" \
+        .
+      docker push "$IMAGE_BACKEND:$CI_COMMIT_SHA"
+      docker push "$IMAGE_BACKEND:prod-latest"
+      echo "BACKEND_IMAGE=$IMAGE_BACKEND:$CI_COMMIT_SHA" > build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+
+# --- Smoke Test Built Image ---
+smoke-backend-image:
+  stage: guardrails
+  image: docker:27.0.3
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  needs: ["build-backend-image"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  before_script:
+    - apk add --no-cache curl
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker pull "$IMAGE_BACKEND:$CI_COMMIT_SHA"
+  script:
+    - sh scripts/ci/smoke_test_backend.sh
+  after_script:
+    - echo "=== Backend Logs ==="
+    - docker logs --tail=200 backend-smoke || true
+    - docker rm -f backend-smoke || true
+
+# --- Stage 4: Deploy to Production ---
+# ============================
+# Deploy to Production (CI checkout)
+# Runner và prod cùng máy → deploy local bằng docker.sock
+# Không dùng SSH, không dùng PROD_DEPLOY_PATH
+# ============================
+deploy-prod-backend:
+  stage: deploy
+  image: docker:27.0.3
+  tags: [prod-runner]
+
+  # ❗️BỎ needs để tránh "undefined need: build-backend-image"
+  # Dựa vào stage-order + manual job (deploy chỉ chạy khi bạn bấm Play sau khi build/test pass)
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+
+  allow_failure: true
+
+  # tránh 2 deploy chạy song song
+  resource_group: production
+
+  environment:
+    name: production
+    url: $PROD_PUBLIC_BASE_URL
+
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+    DOCKER_TLS_CERTDIR: ""
+    COMPOSE_PROJECT_NAME: gov-prod
+
+  before_script:
+    - set -eu
+    - apk add --no-cache bash curl coreutils
+    - docker version
+    - docker compose version
+    - docker info
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+
+  script:
+    - |
+      set -eu
+
+      fatal() { echo "❌ FATAL: $*" >&2; exit 1; }
+
+      cd "$CI_PROJECT_DIR"
+      echo "CI_PROJECT_DIR=$CI_PROJECT_DIR"
+
+      echo "[0/7] Resolve BACKEND_IMAGE"
+      # Ưu tiên BACKEND_IMAGE nếu manual override / dotenv từ build
+      # Fallback an toàn: prod-latest (tránh commit-sha tag không tồn tại)
+      IMAGE_BACKEND="${IMAGE_BACKEND:-${CI_REGISTRY_IMAGE}/backend}"
+      BACKEND_IMAGE="${BACKEND_IMAGE:-${IMAGE_BACKEND}:prod-latest}"
+      echo "🚀 Deploying BACKEND_IMAGE=$BACKEND_IMAGE"
+
+      echo "[1/7] Resolve compose file (.yml/.yaml)"
+      COMPOSE_FILE="infra/compose/docker-compose.prod.yml"
+      if [ ! -f "$COMPOSE_FILE" ]; then
+        if [ -f "infra/compose/docker-compose.prod.yaml" ]; then
+          COMPOSE_FILE="infra/compose/docker-compose.prod.yaml"
+        else
+          echo "Available files in infra/compose:"
+          ls -la infra/compose || true
+          fatal "Compose file not found: infra/compose/docker-compose.prod.(yml|yaml)"
+        fi
+      fi
+      echo "✅ COMPOSE_FILE=$COMPOSE_FILE"
+
+      echo "[1.0/7] Materialize .env.prod"
+      [ -n "${ENV_PROD_FILE:-}" ] || fatal "ENV_PROD_FILE not set (File variable)"
+      [ -f "$ENV_PROD_FILE" ] || fatal "ENV_PROD_FILE path missing: $ENV_PROD_FILE"
+      cp "$ENV_PROD_FILE" .env.prod
+      chmod 600 .env.prod
+      echo "✅ .env.prod created"
+
+      echo "[1.1/7] Verify required vars"
+      grep -q "^ENV_MODE=prod" .env.prod || fatal "ENV_MODE=prod missing"
+      grep -q "^DB_URL=" .env.prod      || fatal "DB_URL missing"
+      grep -q "^QDRANT_URL=" .env.prod  || fatal "QDRANT_URL missing"
+      grep -q "^REDIS_URL=" .env.prod   || fatal "REDIS_URL missing"
+      grep -q "^API_KEYS_JSON=" .env.prod || fatal "API_KEYS_JSON missing"
+      echo "✅ Required vars present."
+
+      echo "[1.2/7] Preflight: ensure remote image exists"
+      if ! docker pull "$BACKEND_IMAGE" >/dev/null 2>&1; then
+        fatal "Image not found/pull failed: $BACKEND_IMAGE (check Container Registry tags or build job push tags)"
+      fi
+      echo "✅ Image pullable."
+
+      echo "[2/7] Capture current image (for rollback)"
+      CURRENT_IMAGE="$(docker inspect gov-backend-prod --format '{{.Config.Image}}' 2>/dev/null || true)"
+      echo "CURRENT_IMAGE=${CURRENT_IMAGE:-none}"
+      mkdir -p ops
+      echo "${CURRENT_IMAGE:-}" > ops/last_backend_image.txt
+
+      echo "[3/7] Pull via compose (backend service)"
+      export BACKEND_IMAGE="$BACKEND_IMAGE"
+      docker compose --env-file .env.prod -f "$COMPOSE_FILE" pull backend
+
+      echo "[4/7] Restart backend only"
+      docker compose --env-file .env.prod -f "$COMPOSE_FILE" up -d --no-deps backend
+
+      echo "[5/7] Post-deploy /health"
+      [ -n "${PROD_PUBLIC_BASE_URL:-}" ] || fatal "PROD_PUBLIC_BASE_URL not set"
+
+      ok=0
+      i=1
+      while [ $i -le 60 ]; do
+        if curl -fsS "${PROD_PUBLIC_BASE_URL}/health" >/dev/null 2>&1; then ok=1; break; fi
+        i=$((i+1))
+        sleep 1
+      done
+
+      if [ "$ok" -eq 1 ]; then
+        echo "✅ HEALTH OK"
+        docker inspect gov-backend-prod --format '{{.Config.Image}}' 2>/dev/null || true
+        exit 0
+      fi
+
+      echo "❌ HEALTH FAILED -> AUTO ROLLBACK"
+      docker logs --tail=200 gov-backend-prod || true
+
+      if [ -n "${CURRENT_IMAGE:-}" ]; then
+        echo "Rolling back to: $CURRENT_IMAGE"
+        export BACKEND_IMAGE="$CURRENT_IMAGE"
+        docker compose --env-file .env.prod -f "$COMPOSE_FILE" up -d --no-deps backend || true
+        exit 1
+      fi
+
+      fatal "No CURRENT_IMAGE found to rollback."
+
+# --- D4.3: Config Bundle & Sync ---
+build-release-bundle:
+  stage: build
+  image: alpine:3.19
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - apk add --no-cache bash tar coreutils
+    - bash scripts/deploy/make_release_bundle.sh "$CI_COMMIT_SHA"
+    - ls -lah dist/
+  artifacts:
+    paths:
+      - dist/release_${CI_COMMIT_SHA}.tgz
+    expire_in: 7 days
+
+# ============================
+# Sync Config Bundle (CI checkout)
+# Copy dist bundle vào repo checkout + apply local
+# Không dùng SCP/SSH, không dùng PROD_DEPLOY_PATH
+# ============================
+
+sync-config-prod:
+  stage: deploy
+  image: alpine:3.19
+  tags: [prod-runner]
+
+  # ❗️BỎ needs để tránh phụ thuộc job tên không khớp
+  # vẫn đảm bảo chạy đúng nhờ stage + manual
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+
+  allow_failure: true
+  resource_group: production
+
+  environment:
+    name: production
+    url: $PROD_PUBLIC_BASE_URL
+
+  before_script:
+    - set -Eeuo pipefail
+    - apk add --no-cache bash tar coreutils
+
+  script:
+    - |
+      set -Eeuo pipefail
+      fatal() { echo "❌ FATAL: $*" >&2; exit 1; }
+
+      cd "$CI_PROJECT_DIR"
+      echo "CI_PROJECT_DIR=$CI_PROJECT_DIR"
+
+      BUNDLE="dist/release_${CI_COMMIT_SHA}.tgz"
+      if [ ! -f "$BUNDLE" ]; then
+        ls -la dist || true
+        fatal "Bundle not found: $BUNDLE"
+      fi
+
+      if [ ! -f "scripts/deploy/apply_config_bundle.sh" ]; then
+        fatal "Missing apply script: scripts/deploy/apply_config_bundle.sh"
+      fi
+
+      mkdir -p "ops/releases/${CI_COMMIT_SHA}"
+      cp "$BUNDLE" "ops/releases/${CI_COMMIT_SHA}/bundle.tgz"
+      cp scripts/deploy/apply_config_bundle.sh "ops/releases/${CI_COMMIT_SHA}/apply.sh"
+      chmod +x "ops/releases/${CI_COMMIT_SHA}/apply.sh"
+
+      echo "✅ Bundle staged at ops/releases/${CI_COMMIT_SHA}/"
+
+      echo "🚀 Applying config bundle locally..."
+      RELEASE_SHA="${CI_COMMIT_SHA}" \
+      PROD_PUBLIC_BASE_URL="${PROD_PUBLIC_BASE_URL:-http://localhost:8080}" \
+      bash "ops/releases/${CI_COMMIT_SHA}/apply.sh"
+# Trigger CI run Fri Feb  6 04:06:55 PM +07 2026

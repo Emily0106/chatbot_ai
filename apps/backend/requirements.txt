@@ -1,0 +1,18 @@
+fastapi
+uvicorn
+python-dotenv
+sqlalchemy
+psycopg2-binary
+qdrant-client
+redis
+sqlglot
+requests
+pydantic-settings
+openai
+minio
+asyncpg
+sentence-transformers
+httpx
+prometheus_client
+python-multipart
+duckduckgo-search>=6.0.0  # Free search API for testing (no key needed)

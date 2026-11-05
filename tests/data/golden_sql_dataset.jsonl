@@ -1,0 +1,50 @@
+{"question": "Tìm thông tin của ông Nguyễn Văn A", "sql": "SELECT * FROM view_people WHERE full_name ILIKE :name LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Cho tôi xin số điện thoại của bà Lê Thị B", "sql": "SELECT phone FROM view_people WHERE full_name ILIKE :name LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Ai có số CCCD là 0123456789?", "sql": "SELECT * FROM view_people WHERE code = :code LIMIT 1", "difficulty": "easy", "category": "lookup"}
+{"question": "Tìm người có email là test@example.com", "sql": "SELECT * FROM view_people WHERE email = :email LIMIT 1", "difficulty": "easy", "category": "lookup"}
+{"question": "Danh sách những người sống tại Thôn 1", "sql": "SELECT * FROM view_people WHERE address ILIKE :address LIMIT 50", "difficulty": "easy", "category": "lookup"}
+{"question": "Tìm cán bộ làm nghề Giáo viên", "sql": "SELECT * FROM view_people WHERE occupation ILIKE :occupation LIMIT 50", "difficulty": "easy", "category": "lookup"}
+{"question": "Thông tin chi tiết về ông Trần Văn C", "sql": "SELECT * FROM view_people WHERE full_name ILIKE :name LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Số điện thoại của người tên Hùng", "sql": "SELECT full_name, phone FROM view_people WHERE full_name ILIKE :name LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Tra cứu mã định danh của bà Nguyễn Thị D", "sql": "SELECT code FROM view_people WHERE full_name ILIKE :name LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Ai đang làm Chủ tịch xã?", "sql": "SELECT * FROM view_people WHERE occupation ILIKE :occupation LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Tìm người sinh ngày 01/01/1990", "sql": "SELECT * FROM view_people WHERE dob = :dob LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Danh sách công dân nữ trong xã", "sql": "SELECT * FROM view_people WHERE gender = 'Nữ' LIMIT 50", "difficulty": "easy", "category": "lookup"}
+{"question": "Có ai tên là Lan không?", "sql": "SELECT * FROM view_people WHERE full_name ILIKE :name LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Địa chỉ của ông Phạm Văn E ở đâu?", "sql": "SELECT address FROM view_people WHERE full_name ILIKE :name LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Tìm nhân sự có mã NV001", "sql": "SELECT * FROM view_people WHERE code = :code LIMIT 1", "difficulty": "easy", "category": "lookup"}
+{"question": "Liệt kê các hộ nghèo (giả định nghề nghiệp là Hộ nghèo)", "sql": "SELECT * FROM view_people WHERE occupation ILIKE '%Hộ nghèo%' LIMIT 50", "difficulty": "easy", "category": "lookup"}
+{"question": "Thông tin liên lạc của cô giáo Thảo", "sql": "SELECT phone, email, address FROM view_people WHERE full_name ILIKE :name AND occupation ILIKE '%Giáo viên%' LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Tìm người tên Tuấn ở Xóm 3", "sql": "SELECT * FROM view_people WHERE full_name ILIKE :name AND address ILIKE :address LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Bác sĩ nào đang làm việc tại trạm y tế?", "sql": "SELECT * FROM view_people WHERE occupation ILIKE '%Bác sĩ%' LIMIT 20", "difficulty": "easy", "category": "lookup"}
+{"question": "Tra cứu thông tin theo số điện thoại 0987654321", "sql": "SELECT * FROM view_people WHERE phone = :phone LIMIT 1", "difficulty": "easy", "category": "lookup"}
+{"question": "Tổng thu ngân sách năm 2024 là bao nhiêu?", "sql": "SELECT SUM(amount) FROM view_budget WHERE item ILIKE '%Thu%' AND year = 2024", "difficulty": "medium", "category": "statistic"}
+{"question": "Chi phí cho xây dựng cơ bản năm ngoái", "sql": "SELECT SUM(amount) FROM view_budget WHERE item ILIKE '%Xây dựng%' AND year = 2025", "difficulty": "medium", "category": "statistic"}
+{"question": "Liệt kê các khoản chi lớn hơn 50 triệu", "sql": "SELECT * FROM view_budget WHERE amount > 50000000 LIMIT 50", "difficulty": "medium", "category": "statistic"}
+{"question": "Danh sách thu chi của năm 2023", "sql": "SELECT * FROM view_budget WHERE year = 2023 LIMIT 50", "difficulty": "medium", "category": "statistic"}
+{"question": "Tổng chi cho giáo dục là bao nhiêu?", "sql": "SELECT SUM(amount) FROM view_budget WHERE item ILIKE '%Giáo dục%'", "difficulty": "medium", "category": "statistic"}
+{"question": "Thống kê các khoản thu từ đất đai", "sql": "SELECT * FROM view_budget WHERE item ILIKE '%Đất đai%' LIMIT 50", "difficulty": "medium", "category": "statistic"}
+{"question": "Chi ngân sách cho y tế năm nay", "sql": "SELECT SUM(amount) FROM view_budget WHERE item ILIKE '%Y tế%' AND year = 2026", "difficulty": "medium", "category": "statistic"}
+{"question": "Các khoản chi nào dưới 1 triệu đồng?", "sql": "SELECT * FROM view_budget WHERE amount < 1000000 LIMIT 50", "difficulty": "medium", "category": "statistic"}
+{"question": "Tổng hợp thu chi quý 1 năm 2024 (giả định item chứa quý)", "sql": "SELECT * FROM view_budget WHERE item ILIKE '%Quý 1%' AND year = 2024 LIMIT 50", "difficulty": "medium", "category": "statistic"}
+{"question": "So sánh thu chi năm 2024 và 2025", "sql": "SELECT year, SUM(amount) FROM view_budget WHERE year IN (2024, 2025) GROUP BY year", "difficulty": "medium", "category": "statistic"}
+{"question": "Có bao nhiêu người tên là Hùng?", "sql": "SELECT COUNT(*) FROM view_people WHERE full_name ILIKE :name", "difficulty": "medium", "category": "statistic"}
+{"question": "Đếm số lượng giáo viên trong xã", "sql": "SELECT COUNT(*) FROM view_people WHERE occupation ILIKE '%Giáo viên%'", "difficulty": "medium", "category": "statistic"}
+{"question": "Thống kê số lượng nam và nữ", "sql": "SELECT gender, COUNT(*) FROM view_people GROUP BY gender", "difficulty": "medium", "category": "statistic"}
+{"question": "Có bao nhiêu người sinh năm 1990?", "sql": "SELECT COUNT(*) FROM view_people WHERE dob ILIKE '%1990%'", "difficulty": "medium", "category": "statistic"}
+{"question": "Số lượng hộ nghèo là bao nhiêu?", "sql": "SELECT COUNT(*) FROM view_people WHERE occupation ILIKE '%Hộ nghèo%'", "difficulty": "medium", "category": "statistic"}
+{"question": "Tổng số tiền đã chi cho văn hóa", "sql": "SELECT SUM(amount) FROM view_budget WHERE item ILIKE '%Văn hóa%'", "difficulty": "medium", "category": "statistic"}
+{"question": "Đếm số lượng cán bộ xã", "sql": "SELECT COUNT(*) FROM view_people WHERE occupation ILIKE '%Cán bộ%'", "difficulty": "medium", "category": "statistic"}
+{"question": "Liệt kê 5 khoản chi lớn nhất năm 2024", "sql": "SELECT * FROM view_budget WHERE year = 2024 ORDER BY amount DESC LIMIT 5", "difficulty": "medium", "category": "statistic"}
+{"question": "Tìm người lớn tuổi nhất trong danh sách", "sql": "SELECT * FROM view_people ORDER BY dob ASC LIMIT 1", "difficulty": "medium", "category": "statistic"}
+{"question": "Danh sách 10 người mới nhất được thêm vào", "sql": "SELECT * FROM view_people ORDER BY row_id DESC LIMIT 10", "difficulty": "medium", "category": "statistic"}
+{"question": "Thống kê ngân sách theo từng năm", "sql": "SELECT year, SUM(amount) FROM view_budget GROUP BY year ORDER BY year DESC", "difficulty": "hard", "category": "statistic"}
+{"question": "Đếm số người theo từng nghề nghiệp", "sql": "SELECT occupation, COUNT(*) FROM view_people GROUP BY occupation ORDER BY COUNT(*) DESC LIMIT 20", "difficulty": "hard", "category": "statistic"}
+{"question": "Tổng chi trung bình mỗi năm là bao nhiêu?", "sql": "SELECT AVG(amount) FROM view_budget WHERE item ILIKE '%Chi%'", "difficulty": "hard", "category": "statistic"}
+{"question": "Tìm những người có cùng họ Nguyễn", "sql": "SELECT * FROM view_people WHERE full_name ILIKE 'Nguyễn%' LIMIT 50", "difficulty": "hard", "category": "lookup"}
+{"question": "Danh sách người ở Thôn 1 và làm nông dân", "sql": "SELECT * FROM view_people WHERE address ILIKE '%Thôn 1%' AND occupation ILIKE '%Nông dân%' LIMIT 50", "difficulty": "hard", "category": "lookup"}
+{"question": "Tổng thu trừ tổng chi năm 2024 (giả định item phân biệt thu/chi)", "sql": "SELECT (SELECT SUM(amount) FROM view_budget WHERE item ILIKE '%Thu%' AND year = 2024) - (SELECT SUM(amount) FROM view_budget WHERE item ILIKE '%Chi%' AND year = 2024) as balance", "difficulty": "hard", "category": "statistic"}
+{"question": "Liệt kê những người không có số điện thoại", "sql": "SELECT * FROM view_people WHERE phone IS NULL OR phone = '' LIMIT 50", "difficulty": "hard", "category": "lookup"}
+{"question": "Tìm các khoản chi bất thường (trên 1 tỷ)", "sql": "SELECT * FROM view_budget WHERE amount > 1000000000 LIMIT 20", "difficulty": "hard", "category": "statistic"}
+{"question": "Đếm số lượng người theo từng thôn (dựa trên địa chỉ)", "sql": "SELECT address, COUNT(*) FROM view_people GROUP BY address ORDER BY COUNT(*) DESC LIMIT 20", "difficulty": "hard", "category": "statistic"}
+{"question": "Top 3 hạng mục tiêu tốn ngân sách nhất năm 2025", "sql": "SELECT item, SUM(amount) FROM view_budget WHERE year = 2025 GROUP BY item ORDER BY SUM(amount) DESC LIMIT 3", "difficulty": "hard", "category": "statistic"}

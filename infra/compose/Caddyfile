@@ -1,0 +1,33 @@
+{
+    # Disable admin API for security
+    admin off
+}
+
+{$DOMAIN_NAME:localhost} {
+    # Logging
+    log {
+        output stdout
+    }
+
+    # Security Headers (Hardening)
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Xss-Protection "1; mode=block"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Block /metrics endpoint (Internal Only)
+    @blocked {
+        path /metrics
+    }
+    respond @blocked "Access Denied" 403
+
+    # Reverse Proxy to Backend
+    reverse_proxy backend:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        # header_up X-Forwarded-Proto {scheme} # Automated by Caddy
+    }
+}

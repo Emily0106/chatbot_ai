@@ -1,0 +1,42 @@
+groups:
+- name: govai_alerts
+  rules:
+  - alert: HighErrorRate
+    expr: sum(rate(govai_chat_requests_total{status="error"}[5m])) / sum(rate(govai_chat_requests_total[5m])) > 0.02
+    for: 1m
+    labels:
+      severity: error
+    annotations:
+      summary: "High Error Rate (> 2%) detected on {{ $labels.instance }}"
+
+  - alert: HighLatencyP95
+    expr: histogram_quantile(0.95, sum(rate(govai_chat_latency_seconds_bucket{stage="total"}[5m])) by (le)) > 3
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High P95 Latency (> 3s) on {{ $labels.instance }}"
+
+  - alert: AuthZDenialSpike
+    expr: sum(rate(govai_authz_denials_total[5m])) > 1
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "AuthZ Denial Spike detected: > 1 denials/sec"
+
+  - alert: RateLimitSpike
+    expr: sum(rate(govai_chat_requests_total{status="rate_limited"}[5m])) > 1
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Rate Limits hitting frequency > 1 rps"
+
+  - alert: BackendDown
+    expr: up{job="govai-backend"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Backend service is DOWN or not reachable by Prometheus"

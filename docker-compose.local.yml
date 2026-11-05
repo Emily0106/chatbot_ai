@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U test -d test" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  ingestion-api:
+    build:
+      context: .
+      dockerfile: apps/ingestion/Dockerfile.gpu
+    environment:
+      - DATABASE_URL=postgresql://test:test@postgres:5432/test
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION=gov_knowledge
+      - REDIS_URL=redis://redis:6379
+      - INGEST_LANE=auto
+      - INGEST_LANE=auto
+      - EMBED_MODEL_PATH=/models/vietnamese-sbert
+      - EMBED_DEVICE=cuda
+      - DOCLING_ARTIFACTS_PATH=/models/docling
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./apps/ingestion/src:/app/src
+      - ./libs/core_shared:/app/libs/core_shared
+      - /tmp/ai_chat_storage:/tmp/ai_chat_storage
+      - ./models:/models:ro
+      - ./storage/raw_files:/app/storage
+    depends_on:
+      - postgres
+      - qdrant
+      - redis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+  ingestion-worker:
+    build:
+      context: .
+      dockerfile: apps/ingestion/Dockerfile.gpu
+    command: celery -A app.workers.worker_main worker --loglevel=info --concurrency=1
+    environment:
+      - DATABASE_URL=postgresql://test:test@postgres:5432/test
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION=gov_knowledge
+      - REDIS_URL=redis://redis:6379
+      - INGEST_LANE=auto
+      - EMBED_MODEL_PATH=/models/vietnamese-sbert
+      - EMBED_DEVICE=cuda
+      - DOCLING_ARTIFACTS_PATH=/models/docling
+    volumes:
+      - ./apps/ingestion/src:/app/src
+      - ./libs/core_shared:/app/libs/core_shared
+      - /tmp/ai_chat_storage:/tmp/ai_chat_storage
+      - ./models:/models:ro
+      - ./storage/raw_files:/app/storage
+    depends_on:
+      - postgres
+      - qdrant
+      - redis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+volumes:
+  postgres_data:
+  qdrant_data:

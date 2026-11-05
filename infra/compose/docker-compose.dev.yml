@@ -1,0 +1,30 @@
+services:
+  backend:
+    volumes:
+      - ../../apps/backend/src:/app/src
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+  ingest-api:
+    volumes:
+      - ../../apps/ingestion/src:/app/src
+      - ../../storage/raw_files:/app/storage
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload
+
+  ingest-worker:
+    volumes:
+      - ../../apps/ingestion/src:/app/src
+      - ../../storage/raw_files:/app/storage
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]

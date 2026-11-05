@@ -1,0 +1,1 @@
+{"id": "manual_001", "question": "Ca trực của cán bộ Nguyễn Văn A là khi nào?", "ideal_answer": "Thứ 2-6 (08:00-17:00)", "expected_chunk_id": "d4ec1d69-bf68-576a-a0e0-e998d1b13e62", "must_contain": ["Thứ 2-6", "08:00-17:00"], "tags": ["manual", "people"]}
